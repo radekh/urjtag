@@ -120,7 +120,7 @@ static int opendous_usb_message (urj_usbconn_libusb_param_t *params, int out_len
 static int opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int length);
 static int opendous_usb_read (urj_usbconn_libusb_param_t *params);
 
-/*static void opendous_debug_buffer (char *buffer, int length);*/
+static void opendous_debug_buffer (char *buffer, int length);
 
 /* API functions */
 
@@ -134,48 +134,43 @@ void
 urj_tap_cable_opendous_reset (urj_usbconn_libusb_param_t *params, int trst,
                               int srst)
 {
-    DEBUG ("trst: %i, srst: %i\n", trst, srst);
+    urj_log (URJ_LOG_LEVEL_COMM, "trst=%d, srst=%d\n", trst, srst);
+ 
     /* Signals are active low */
-    if (trst == 0)
-    {
+    if (trst == 0) {
         opendous_simple_command (params, JTAG_CMD_SET_TRST,1);
-    }
-    else if (trst == 1)
-    {
+    } else if (trst == 1) {
         opendous_simple_command (params, JTAG_CMD_SET_TRST,0);
     }
 
-    if (srst == 0)
-    {
+    if (srst == 0) {
         opendous_simple_command (params, JTAG_CMD_SET_SRST,1);
-    }
-    else if (srst == 1)
-    {
+    } else if (srst == 1) {
         opendous_simple_command (params, JTAG_CMD_SET_SRST,0);
     }
 }
 
 
 static int
-opendous_simple_command (urj_usbconn_libusb_param_t *params, uint8_t command,uint8_t _data)
+opendous_simple_command (urj_usbconn_libusb_param_t *params, uint8_t command, uint8_t _data)
 {
     int result;
     opendous_usbconn_data_t *data = params->data;
 
-    //INFO ("simple_command: 0x%02x\n", command);
+    urj_log (URJ_LOG_LEVEL_COMM, "simple comand 0x%02x 0x%02x\n", command, _data);
 
     data->usb_out_buffer[0] = command;
     data->usb_out_buffer[1] = _data;
     result = opendous_usb_write (params, 2);
 
-    if (result != 2)
-    {
-        ERROR ("OPENDOUS writing command 0x%02x failed (%d)\n", command, result);
+    if (result != 2) {
+	urj_log (URJ_LOG_LEVEL_COMM, "writting: command=0x%02x, data=0x%02x, result=%d\n",
+		 command, _data, result);
     }
     result = opendous_usb_read (params);
-    if (result != 1)
-    {
-        ERROR ("OPENDOUS reading command 0x%02x failed (%d)\n", command, result);
+    if (result != 1) {
+	urj_log (URJ_LOG_LEVEL_COMM, "reading: command=0x%02x, result=%d\n",
+		 command, result);
     }
     return data->usb_in_buffer[0];
 }
@@ -388,32 +383,36 @@ opendous_usb_message (urj_usbconn_libusb_param_t *params, int out_length, int in
 static int
 opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int out_length)
 {
-    int result, actual;
+    int result, transferred;
     opendous_usbconn_data_t *data;
     data = params->data;
 
-    if (out_length > OPENDOUS_OUT_BUFFER_SIZE)
-    {
-        ERROR ("opendous_jtag_write illegal out_length=%d (max=%d)\n",
-               out_length, OPENDOUS_OUT_BUFFER_SIZE);
-
+    urj_log (URJ_LOG_LEVEL_ALL, "out_length=%d\n", out_length);
+    if (out_length > OPENDOUS_OUT_BUFFER_SIZE) {
+        urj_log (URJ_LOG_LEVEL_ERROR,
+		 "opendous_jtag_write illegal out_length=%d (max=%d)\n",
+		 out_length, OPENDOUS_OUT_BUFFER_SIZE);
         return -1;
     }
 
-    //INFO ("Writing:\n");
-    //opendous_debug_buffer (data->usb_out_buffer, out_length);
+    urj_log (URJ_LOG_LEVEL_ALL, "buffer contains:\n");
+    if (URJ_LOG_LEVEL_ALL >= urj_log_state.level) {
+	opendous_debug_buffer (data->usb_out_buffer, out_length);
+    }
     
     result = libusb_bulk_transfer (params->handle,
                                    OPENDOUS_WRITE_ENDPOINT,
                                    data->usb_out_buffer,
                                    out_length,
-                                   &actual,
+                                   &transferred,
                                    OPENDOUS_USB_TIMEOUT);
-    urj_log (URJ_LOG_LEVEL_DETAIL, "result = %d, actual = %d\n", result, actual);
+    if (result) {
+        urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
+    }
+    urj_log (URJ_LOG_LEVEL_DETAIL, "result=%d, length=%d, transferred=%d\n",
+	    result, out_length, transferred);
 
-    DEBUG ("opendous_usb_write, out_length = %d, result = %d\n", out_length,
-           result);
-    return actual;
+    return transferred;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -423,23 +422,27 @@ static int
 opendous_usb_read (urj_usbconn_libusb_param_t *params)
 {
     opendous_usbconn_data_t *data = params->data;
-    int actual;
+    int transferred;
     int result = libusb_bulk_transfer (params->handle,
                                        OPENDOUS_READ_ENDPOINT,
                                        data->usb_in_buffer,
                                        OPENDOUS_IN_BUFFER_SIZE,
-                                       &actual,
+                                       &transferred,
                                        OPENDOUS_USB_TIMEOUT);
+    if (result) {
+        urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
+    }
 
-    urj_log (URJ_LOG_LEVEL_DETAIL, "result=%d, actual=%d\n", result, actual);
-    //DEBUG ("opendous_usb_read, result = %d\n", result);
-    //INFO ("Have read:\n");
-    //opendous_debug_buffer (data->usb_in_buffer, result);
-    return actual;
+    urj_log (URJ_LOG_LEVEL_ALL, "result=%d, transferred=%d\n", result, transferred);
+    urj_log (URJ_LOG_LEVEL_ALL, "Have read:\n");
+    if (URJ_LOG_LEVEL_ALL >= urj_log_state.level) {
+	opendous_debug_buffer (data->usb_in_buffer, transferred);
+    }
+    return transferred;
 }
 
 /* ---------------------------------------------------------------------- */
-/*
+
 #define BYTES_PER_LINE  16
 
 static void
@@ -462,7 +465,7 @@ opendous_debug_buffer (char *buffer, int length)
         INFO ("\n");
     }
 }
-*/
+
 
 /* ---------------------------------------------------------------------- */
 
