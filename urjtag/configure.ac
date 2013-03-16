@@ -659,6 +659,7 @@ URJ_DRIVER_SET([cable], [
 	triton
 	usbblaster
 	vsllink
+	opendous
 	wiggler
 	xpc
 ],[
@@ -675,6 +676,7 @@ URJ_DRIVER_SET([cable], [
 			-e s/ice100// \
 			-e s/jlink// \
 			-e s/vsllink// \
+			-e s/opendous// \
 			-e s/xpc//`
 	])
 	AS_IF([test "x$ac_cv_func_pread" != "xyes"], [

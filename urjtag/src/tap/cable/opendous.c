@@ -36,7 +36,7 @@
 #include "generic.h"
 #include "generic_usbconn.h"
 
-#include "usbconn.h"
+#include "urjtag/usbconn.h"
 #include "usbconn/libusb.h"
 
 /* ---------------------------------------------------------------------- */
@@ -103,36 +103,36 @@ FILE *debug_log=0;
 
 
 /* Queue command functions */
-static void urj_tap_cable_opendous_reset (libusb_param_t *params,
-                                       int trst, int srst);
+static void urj_tap_cable_opendous_reset (urj_usbconn_libusb_param_t *params,
+                                          int trst, int srst);
                                        
-static int opendous_simple_command (libusb_param_t *params,
-                                  uint8_t command,uint8_t data);
+static int opendous_simple_command (urj_usbconn_libusb_param_t *params,
+                                    uint8_t command,uint8_t data);
 
 
 /* J-Link tap buffer functions */
 static void opendous_tap_init (opendous_usbconn_data_t *data);
-static int opendous_tap_execute (libusb_param_t *params);
+static int opendous_tap_execute (urj_usbconn_libusb_param_t *params);
 static void opendous_tap_append_step (opendous_usbconn_data_t *data, int tms, int tdi);
 
 /* Jlink lowlevel functions */
-static int opendous_usb_message (libusb_param_t *params, int out_length, int in_length);
-static int opendous_usb_write (libusb_param_t *params, unsigned int length);
-static int opendous_usb_read (libusb_param_t *params);
+static int opendous_usb_message (urj_usbconn_libusb_param_t *params, int out_length, int in_length);
+static int opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int length);
+static int opendous_usb_read (urj_usbconn_libusb_param_t *params);
 
-static void opendous_debug_buffer (char *buffer, int length);
+/*static void opendous_debug_buffer (char *buffer, int length);*/
 
 /* API functions */
 
-void urj_tap_cable_opendous_set_frequency (cable_t *cable,
-                                        uint32_t frequency);
+void urj_tap_cable_opendous_set_frequency (urj_cable_t *cable,
+                                           uint32_t frequency);
 
 /***************************************************************************/
 /* Opendous tap functions */
 
 void
-urj_tap_cable_opendous_reset (libusb_param_t *params, int trst,
-                           int srst)
+urj_tap_cable_opendous_reset (urj_usbconn_libusb_param_t *params, int trst,
+                              int srst)
 {
     DEBUG ("trst: %i, srst: %i\n", trst, srst);
     /* Signals are active low */
@@ -157,7 +157,7 @@ urj_tap_cable_opendous_reset (libusb_param_t *params, int trst,
 
 
 static int
-opendous_simple_command (libusb_param_t *params, uint8_t command,uint8_t _data)
+opendous_simple_command (urj_usbconn_libusb_param_t *params, uint8_t command,uint8_t _data)
 {
     int result;
     opendous_usbconn_data_t *data = params->data;
@@ -180,13 +180,15 @@ opendous_simple_command (libusb_param_t *params, uint8_t command,uint8_t _data)
     return data->usb_in_buffer[0];
 }
 
+/*
 static int
-opendous_get_status (libusb_param_t *params)
+opendous_get_status (urj_usbconn_libusb_param_t *params)
 {
     //TODO: make some function for reading info
   
     return 1;
 }
+*/
 
 
 /***************************************************************************/
@@ -256,13 +258,13 @@ opendous_schedule_tap_append_step (opendous_usbconn_data_t *data, int tms, int t
 /* Send a tap sequence to the device, and receive the answer */
 
 static int
-opendous_tap_execute (libusb_param_t *params)
+opendous_tap_execute (urj_usbconn_libusb_param_t *params)
 {
     opendous_usbconn_data_t *data = params->data;
     int byte_length,byte_length_out;
     int i;
     int result;
-    int bit_length;
+    /*int bit_length;*/
     //if(debug_log) fprintf (debug_log,"TAP execute:%d\n",data->tap_length);
     if (data->tap_length > 0)
     {
@@ -294,11 +296,11 @@ opendous_tap_execute (libusb_param_t *params)
 }
 
 static int
-opendous_schedule_flush (libusb_param_t *params)
+opendous_schedule_flush (urj_usbconn_libusb_param_t *params)
 {
     opendous_usbconn_data_t *data = params->data;
     int byte_length,byte_length_out;
-    int i;
+    /*int i;*/
     int result;
     int bit_length=data->schedule_tap_length;
 #ifdef DEBUG_TRANSFER_STATS  
@@ -355,7 +357,7 @@ opendous_schedule_flush (libusb_param_t *params)
 
 /* Send a message and receive the reply. */
 static int
-opendous_usb_message (libusb_param_t *params, int out_length, int in_length)
+opendous_usb_message (urj_usbconn_libusb_param_t *params, int out_length, int in_length)
 {
     int result;
 
@@ -384,11 +386,10 @@ opendous_usb_message (libusb_param_t *params, int out_length, int in_length)
 
 /* Write data from out_buffer to USB. */
 static int
-opendous_usb_write (libusb_param_t *params, unsigned int out_length)
+opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int out_length)
 {
-    int result;
+    int result, actual;
     opendous_usbconn_data_t *data;
-
     data = params->data;
 
     if (out_length > OPENDOUS_OUT_BUFFER_SIZE)
@@ -402,45 +403,49 @@ opendous_usb_write (libusb_param_t *params, unsigned int out_length)
     //INFO ("Writing:\n");
     //opendous_debug_buffer (data->usb_out_buffer, out_length);
     
-    result = usb_bulk_write (params->handle,
-                             OPENDOUS_WRITE_ENDPOINT,
-                             data->usb_out_buffer,
-                             out_length, 
-                             OPENDOUS_USB_TIMEOUT);
+    result = libusb_bulk_transfer (params->handle,
+                                   OPENDOUS_WRITE_ENDPOINT,
+                                   data->usb_out_buffer,
+                                   out_length,
+                                   &actual,
+                                   OPENDOUS_USB_TIMEOUT);
+    urj_log (URJ_LOG_LEVEL_DETAIL, "result = %d, actual = %d\n", result, actual);
 
     DEBUG ("opendous_usb_write, out_length = %d, result = %d\n", out_length,
            result);
-    return result;
+    return actual;
 }
 
 /* ---------------------------------------------------------------------- */
 
 /* Read data from USB into in_buffer. */
 static int
-opendous_usb_read (libusb_param_t *params)
+opendous_usb_read (urj_usbconn_libusb_param_t *params)
 {
     opendous_usbconn_data_t *data = params->data;
+    int actual;
+    int result = libusb_bulk_transfer (params->handle,
+                                       OPENDOUS_READ_ENDPOINT,
+                                       data->usb_in_buffer,
+                                       OPENDOUS_IN_BUFFER_SIZE,
+                                       &actual,
+                                       OPENDOUS_USB_TIMEOUT);
 
-    int result = usb_bulk_read (params->handle,
-                                OPENDOUS_READ_ENDPOINT,
-                                data->usb_in_buffer,
-                                OPENDOUS_IN_BUFFER_SIZE,
-                                OPENDOUS_USB_TIMEOUT);
-
+    urj_log (URJ_LOG_LEVEL_DETAIL, "result=%d, actual=%d\n", result, actual);
     //DEBUG ("opendous_usb_read, result = %d\n", result);
     //INFO ("Have read:\n");
     //opendous_debug_buffer (data->usb_in_buffer, result);
-    return result;
+    return actual;
 }
 
 /* ---------------------------------------------------------------------- */
-
+/*
 #define BYTES_PER_LINE  16
 
 static void
 opendous_debug_buffer (char *buffer, int length)
 {
-    unsigned char line[81];
+    char line[81];
     char s[4];
     int i;
     int j;
@@ -457,14 +462,15 @@ opendous_debug_buffer (char *buffer, int length)
         INFO ("\n");
     }
 }
+*/
 
 /* ---------------------------------------------------------------------- */
 
 static int
-opendous_init (cable_t *cable)
+opendous_init (urj_cable_t *cable)
 {
-    int result;
-    libusb_param_t *params;
+    /*int result;*/
+    urj_usbconn_libusb_param_t *params;
     opendous_usbconn_data_t *data;
 
     params = cable->link.usb->params;
@@ -476,7 +482,7 @@ opendous_init (cable_t *cable)
     }
     data = params->data;
 
-    if (usbconn_open (cable->link.usb)) {
+    if (urj_tap_usbconn_open (cable->link.usb)) {
 		fprintf(stderr,"Failed to open");
         return -1;
 	}
@@ -500,27 +506,27 @@ opendous_init (cable_t *cable)
 /* ---------------------------------------------------------------------- */
 
 static void
-opendous_free (cable_t *cable)
+opendous_free (urj_cable_t *cable)
 {
     opendous_usbconn_data_t *data;
-    data = ((libusb_param_t *) (cable->link.usb->params))->data;
+    data = ((urj_usbconn_libusb_param_t *) (cable->link.usb->params))->data;
     free (data);
 #ifdef DEBUG_TRANSFER_STATS  
     if(debug_log) fclose(debug_log);
     debug_log=NULL;
 #endif //DEBUG_TRANSFER_STATS  
-    generic_usbconn_free (cable);
+    urj_tap_cable_generic_usbconn_free (cable);
 }
 
 /* ---------------------------------------------------------------------- */
 
 void
-urj_tap_cable_opendous_set_frequency (cable_t *cable, uint32_t frequency)
+urj_tap_cable_opendous_set_frequency (urj_cable_t *cable, uint32_t frequency)
 {
-    int result;
+    /*int result;*/
     int speed = frequency / 1E3;
-    libusb_param_t *params = cable->link.usb->params;
-    opendous_usbconn_data_t *data = params->data;
+    /*urj_usbconn_libusb_param_t *params = cable->link.usb->params;*/
+    /*opendous_usbconn_data_t *data = params->data;*/
 
     if (1 <= speed && speed <= OPENDOUS_MAX_SPEED)
     {
@@ -537,10 +543,10 @@ urj_tap_cable_opendous_set_frequency (cable_t *cable, uint32_t frequency)
 /* ---------------------------------------------------------------------- */
 
 static void
-opendous_clock (cable_t *cable, int tms, int tdi, int n)
+opendous_clock (urj_cable_t *cable, int tms, int tdi, int n)
 {
     int i;
-    libusb_param_t *params = cable->link.usb->params;
+    urj_usbconn_libusb_param_t *params = cable->link.usb->params;
     opendous_usbconn_data_t *data = params->data;
     for (i = 0; i < n; i++)
     {
@@ -552,10 +558,10 @@ opendous_clock (cable_t *cable, int tms, int tdi, int n)
 }
 
 static void
-opendous_schedule_clock (cable_t *cable, int tms, int tdi, int n)
+opendous_schedule_clock (urj_cable_t *cable, int tms, int tdi, int n)
 {
     int i;
-    libusb_param_t *params = cable->link.usb->params;
+    urj_usbconn_libusb_param_t *params = cable->link.usb->params;
     opendous_usbconn_data_t *data = params->data;
     for (i = 0; i < n; i++)
     {
@@ -567,9 +573,9 @@ opendous_schedule_clock (cable_t *cable, int tms, int tdi, int n)
 /* ---------------------------------------------------------------------- */
 
 static int
-opendous_get_tdo (cable_t *cable)
+opendous_get_tdo (urj_cable_t *cable)
 {
-  libusb_param_t *params = cable->link.usb->params;
+  urj_usbconn_libusb_param_t *params = cable->link.usb->params;
   opendous_usbconn_data_t *data = params->data;
   // TODO: This is the TDO _before_ last clock occured
   // ...   Anyone knows how to get the current TDO state?
@@ -590,11 +596,11 @@ opendous_copy_out_data (opendous_usbconn_data_t *data, int len, int offset,
     }
 }
 
-static void
-opendous_transfer (cable_t *cable, int len, unsigned char *in, unsigned char *out)
+static int
+opendous_transfer (urj_cable_t *cable, int len, const char *in, char *out)
 {
     int i, j;
-    libusb_param_t *params = cable->link.usb->params;
+    urj_usbconn_libusb_param_t *params = cable->link.usb->params;
     opendous_usbconn_data_t *data = params->data;
 
     //INFO ("Opendous transfer len:%d\n",len);
@@ -620,13 +626,13 @@ opendous_transfer (cable_t *cable, int len, unsigned char *in, unsigned char *ou
 }
 
 static int
-opendous_schedule_transfer (cable_t *cable, int len, unsigned char *in)
+opendous_schedule_transfer (urj_cable_t *cable, int len, char *in)
 {
-    int i, j;
-    libusb_param_t *params = cable->link.usb->params;
+    int i;
+    urj_usbconn_libusb_param_t *params = cable->link.usb->params;
     opendous_usbconn_data_t *data = params->data;
 
-    for (j = 0, i = 0; i < len; i++)
+    for (i = 0; i < len; i++)
     {
         opendous_schedule_tap_append_step (data, 0, in[i]);
 
@@ -639,20 +645,20 @@ opendous_schedule_transfer (cable_t *cable, int len, unsigned char *in)
 /* ---------------------------------------------------------------------- */
 
 static int
-opendous_set_signal (cable_t *cable, int mask, int val)
+opendous_set_signal (urj_cable_t *cable, int mask, int val)
 {
   
   return 1; 
 }
 
 static void
-opendous_flush( cable_t *cable, cable_flush_amount_t how_much )
+opendous_flush (urj_cable_t *cable, urj_cable_flush_amount_t how_much )
 {
-  libusb_param_t *params = cable->link.usb->params;
+  urj_usbconn_libusb_param_t *params = cable->link.usb->params;
   opendous_usbconn_data_t *data=(opendous_usbconn_data_t*)params->data;
   
-	if (how_much == OPTIONALLY) return;
-  if (how_much == TO_OUTPUT && cable->done.num_items>0) return;
+	if (how_much == URJ_TAP_CABLE_OPTIONALLY) return;
+  if (how_much == URJ_TAP_CABLE_TO_OUTPUT && cable->done.num_items>0) return;
   
   opendous_schedule_tap_init(data);
 #ifdef DEBUG_TRANSFER_STATS  
@@ -668,17 +674,17 @@ opendous_flush( cable_t *cable, cable_flush_amount_t how_much )
 
 			switch (cable->todo.data[i].action)
 			{
-			case CABLE_CLOCK:
+			case URJ_TAP_CABLE_CLOCK:
 				opendous_schedule_clock( cable,
 				                           cable->todo.data[i].arg.clock.tms,
 				                           cable->todo.data[i].arg.clock.tdi,
 				                           cable->todo.data[i].arg.clock.n );
 				break;
 
-			case CABLE_GET_TDO:
-        break;
+			case URJ_TAP_CABLE_GET_TDO:
+       				 break;
 
-			case CABLE_TRANSFER:
+			case URJ_TAP_CABLE_TRANSFER:
 				opendous_schedule_transfer( cable,
                                     cable->todo.data[i].arg.transfer.len,
                                     cable->todo.data[i].arg.transfer.in);
@@ -700,39 +706,39 @@ opendous_flush( cable_t *cable, cable_flush_amount_t how_much )
 		{
 			switch (cable->todo.data[j].action)
 			{
-			case CABLE_GET_TDO:
+			case URJ_TAP_CABLE_GET_TDO:
 				{
 					int m;
-					m = cable_add_queue_item( cable, &(cable->done) );
-					cable->done.data[m].action = CABLE_GET_TDO;
+					m = urj_tap_cable_add_queue_item( cable, &(cable->done) );
+					cable->done.data[m].action = URJ_TAP_CABLE_GET_TDO;
 					cable->done.data[m].arg.value.val = data->schedule_tdo[bit_pos/8]&(1<<(bit_pos%8))?1:0;
 					break;
 				}
-			case CABLE_GET_SIGNAL:
+			case URJ_TAP_CABLE_GET_SIGNAL:
 				{
-					int m = cable_add_queue_item( cable, &(cable->done) );
-					cable->done.data[m].action = CABLE_GET_SIGNAL;
+					int m = urj_tap_cable_add_queue_item( cable, &(cable->done) );
+					cable->done.data[m].action = URJ_TAP_CABLE_GET_SIGNAL;
 					cable->done.data[m].arg.value.sig = cable->todo.data[j].arg.value.sig;
-					if (cable->todo.data[j].arg.value.sig == CS_TRST)
+					if (cable->todo.data[j].arg.value.sig == URJ_POD_CS_TRST)
 						cable->done.data[m].arg.value.val = 1;
 					else
 						cable->done.data[m].arg.value.val = -1; // not supported yet
 					break;
 				}
-      case CABLE_CLOCK:
+      case URJ_TAP_CABLE_CLOCK:
         bit_pos+=cable->todo.data[j].arg.clock.n;
         break;
-			case CABLE_TRANSFER:
+			case URJ_TAP_CABLE_TRANSFER:
 				{
 					free( cable->todo.data[j].arg.transfer.in );
 					if (cable->todo.data[j].arg.transfer.out)
 					{
             int k;
-						int m = cable_add_queue_item( cable, &(cable->done) );
+						int m = urj_tap_cable_add_queue_item( cable, &(cable->done) );
 						if (m < 0)
 							fprintf(stderr,"out of memory!\n");
             
-						cable->done.data[m].action = CABLE_TRANSFER;
+						cable->done.data[m].action = URJ_TAP_CABLE_TRANSFER;
 						cable->done.data[m].arg.xferred.len = cable->todo.data[j].arg.transfer.len;
 						cable->done.data[m].arg.xferred.res = 0;
             
@@ -763,28 +769,24 @@ opendous_flush( cable_t *cable, cable_flush_amount_t how_much )
 }
 
 
-cable_driver_t urj_tap_cable_opendous_driver = {
-    "opendous",
-    N_("Opendous based JTAG"),
-    generic_usbconn_connect,
-    generic_disconnect,
-    opendous_free,
-    opendous_init,
-    generic_usbconn_done,
-    urj_tap_cable_opendous_set_frequency,
-    opendous_clock,
-    opendous_get_tdo,
-    opendous_transfer,
-    opendous_set_signal,
-		generic_get_signal,
-    opendous_flush,
-    generic_usbconn_help
+const urj_cable_driver_t urj_tap_cable_opendous_driver = {
+	"opendous",
+	N_("Opendous based JTAG"),
+	URJ_CABLE_DEVICE_USB,
+	{ .usb = urj_tap_cable_generic_usbconn_connect, },
+	urj_tap_cable_generic_disconnect,
+	opendous_free,
+	opendous_init,
+	urj_tap_cable_generic_usbconn_done,
+	urj_tap_cable_opendous_set_frequency,
+	opendous_clock,
+	opendous_get_tdo,
+	opendous_transfer,
+	opendous_set_signal,
+	urj_tap_cable_generic_get_signal,
+	opendous_flush,
+	urj_tap_cable_generic_usbconn_help
 };
 
-usbconn_cable_t urj_tap_cable_usbconn_opendous = {
-    "opendous",                 /* cable name */
-    NULL,                       /* string pattern, not used */
-    "libusb",                   /* usbconn driver */
-    0x03eb,                     /* VID */
-    0x204F                      /* PID */
-};
+// (vid, pid, driver, name, cable)
+URJ_DECLARE_USBCONN_CABLE(0x03eb, 0x204f, "libusb", "opendous", opendous)

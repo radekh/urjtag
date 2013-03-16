@@ -79,3 +79,8 @@ Makefile.in
 /src/svf/svf_bison.c
 /src/svf/svf_bison.h
 /src/svf/svf_flex.c
+
+#
+# Compilation
+#
+make.log

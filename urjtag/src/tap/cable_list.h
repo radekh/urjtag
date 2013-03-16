@@ -101,6 +101,9 @@ _URJ_CABLE(usbblaster)
 #ifdef ENABLE_CABLE_VSLLINK
 _URJ_CABLE(vsllink)
 #endif
+#ifdef ENABLE_CABLE_OPENDOUS
+_URJ_CABLE(opendous)
+#endif
 #ifdef ENABLE_CABLE_WIGGLER
 _URJ_CABLE(wiggler)
 _URJ_CABLE(wiggler2)

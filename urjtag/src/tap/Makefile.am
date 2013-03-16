@@ -144,6 +144,11 @@ libtap_la_SOURCES += \
 	cable/vsllink.c
 endif
 
+if ENABLE_CABLE_OPENDOUS
+libtap_la_SOURCES += \
+	cable/opendous.c
+endif
+
 if HAVE_LIBUSB
 libtap_la_SOURCES += \
 	usbconn/libusb.c \
