@@ -410,7 +410,7 @@ opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int out_length)
                                    &transferred,
                                    OPENDOUS_USB_TIMEOUT);
     if (result) {
-        urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
+        // urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
     }
     urj_log (URJ_LOG_LEVEL_DETAIL, "result=%d, length=%d, transferred=%d\n",
 	    result, out_length, transferred);
@@ -436,7 +436,7 @@ opendous_usb_read (urj_usbconn_libusb_param_t *params)
                                        &transferred,
                                        OPENDOUS_USB_TIMEOUT);
     if (result) {
-        urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
+      //urj_log (URJ_LOG_LEVEL_DEBUG, "libusb_error_name='%s'\n", libusb_error_name(result));
     }
 
     urj_log (URJ_LOG_LEVEL_ALL, "result=%d, transferred=%d\n", result, transferred);
