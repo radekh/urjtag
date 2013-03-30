@@ -157,19 +157,19 @@ opendous_simple_command (urj_usbconn_libusb_param_t *params, uint8_t command, ui
     int result;
     opendous_usbconn_data_t *data = params->data;
 
-    urj_log (URJ_LOG_LEVEL_COMM, "simple comand 0x%02x 0x%02x\n", command, _data);
+    urj_log (URJ_LOG_LEVEL_COMM, "simple comand %#02x %#02x\n", command, _data);
 
     data->usb_out_buffer[0] = command;
     data->usb_out_buffer[1] = _data;
     result = opendous_usb_write (params, 2);
 
     if (result != 2) {
-	urj_log (URJ_LOG_LEVEL_COMM, "writting: command=0x%02x, data=0x%02x, result=%d\n",
+	urj_log (URJ_LOG_LEVEL_COMM, "writting: command=%#02x, data=%#02x, result=%d\n",
 		 command, _data, result);
     }
     result = opendous_usb_read (params);
     if (result != 1) {
-	urj_log (URJ_LOG_LEVEL_COMM, "reading: command=0x%02x, result=%d\n",
+	urj_log (URJ_LOG_LEVEL_COMM, "reading: command=%#02x, result=%d\n",
 		 command, result);
     }
     return data->usb_in_buffer[0];
@@ -399,7 +399,10 @@ opendous_usb_write (urj_usbconn_libusb_param_t *params, unsigned int out_length)
     if (URJ_LOG_LEVEL_ALL >= urj_log_state.level) {
 	opendous_debug_buffer (data->usb_out_buffer, out_length);
     }
-    
+   
+    urj_log(URJ_LOG_LEVEL_ALL, "dev: %#p, ep=%#02x, buff: %#p, size=%d, timeout=%d\n",
+	    params->handle, OPENDOUS_WRITE_ENDPOINT, data->usb_out_buffer,
+	    out_length, OPENDOUS_USB_TIMEOUT);
     result = libusb_bulk_transfer (params->handle,
                                    OPENDOUS_WRITE_ENDPOINT,
                                    data->usb_out_buffer,
@@ -423,6 +426,9 @@ opendous_usb_read (urj_usbconn_libusb_param_t *params)
 {
     opendous_usbconn_data_t *data = params->data;
     int transferred;
+    urj_log(URJ_LOG_LEVEL_ALL, "dev: %#p, ep=%#02x, buff: %#p, size=%d, timeout=%d\n",
+	    params->handle, OPENDOUS_READ_ENDPOINT, data->usb_in_buffer,
+	    OPENDOUS_IN_BUFFER_SIZE, OPENDOUS_USB_TIMEOUT);
     int result = libusb_bulk_transfer (params->handle,
                                        OPENDOUS_READ_ENDPOINT,
                                        data->usb_in_buffer,
@@ -472,7 +478,7 @@ opendous_debug_buffer (char *buffer, int length)
 static int
 opendous_init (urj_cable_t *cable)
 {
-    /*int result;*/
+    int result;
     urj_usbconn_libusb_param_t *params;
     opendous_usbconn_data_t *data;
 
@@ -480,30 +486,34 @@ opendous_init (urj_cable_t *cable)
     params->data = malloc (sizeof (opendous_usbconn_data_t));
     if (params->data == NULL)
     {
-      fprintf(stderr,"Can't allocate memory for opendous!\n");
-      return -1;
+	urj_error_set(URJ_ERROR_OUT_OF_MEMORY, "malloc(%zd) fails",
+		      sizeof(opendous_usbconn_data_t));
+	return URJ_STATUS_FAIL;
     }
     data = params->data;
+    memset (data, 0, sizeof(*data));	/*be paranoid*/
 
-    if (urj_tap_usbconn_open (cable->link.usb)) {
-		fprintf(stderr,"Failed to open");
-        return -1;
-	}
+    if (urj_tap_usbconn_open (cable->link.usb) != URJ_STATUS_OK) {
+	urj_log (URJ_LOG_LEVEL_ERROR, "Failed to open\n");
+	free(data);
+	return URJ_STATUS_FAIL;
+    }
 
-    data->last_tdo=0;
+    data->last_tdo = 0;
     opendous_tap_init (data);
 
-    //INFO ("OPENDOUS JTAG Interface ready\n");
+    //result = opendous_usb_read(params); /*WAS NOT THERE*/
+    //urj_log (URJ_LOG_LEVEL_DEBUG, "result=%d\n", result);
 
+    urj_log (URJ_LOG_LEVEL_DETAIL, "OPENDOUS JTAG Interface ready\n");
     urj_tap_cable_opendous_set_frequency (cable, 4E6);
-
     urj_tap_cable_opendous_reset (params, 0, 0);
     
 #ifdef DEBUG_TRANSFER_STATS    
     debug_log=fopen("/tmp/Debug-log.txt","at");
 #endif     
 
-    return 0;
+    return URJ_STATUS_OK;
 }
 
 /* ---------------------------------------------------------------------- */
