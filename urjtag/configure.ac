@@ -96,8 +96,8 @@ AC_CONFIG_FILES(
 
 AM_MAINTAINER_MODE
 
-AM_CONFIG_HEADER(config.h)
-AM_CONFIG_HEADER(include/urjtag/urjtag.h)
+AC_CONFIG_HEADERS(config.h)
+AC_CONFIG_HEADERS(include/urjtag/urjtag.h)
 
 AC_GNU_SOURCE
 
@@ -239,15 +239,17 @@ LIBFTDI_LIBS=
 AS_IF([test "x$with_libftdi" != xno], [
   save_LIBS=$LIBS
   save_CPPFLAGS=$CPPFLAGS
-  PKG_CHECK_MODULES(LIBFTDI, libftdi, [:;], [dnl
-    AS_IF([test "x$with_libftdi" != xyes -a "x$with_libftdi" != xcheck], [
-      LIBFTDI_LIBS="-L$with_libftdi -lftdi"
-      LIBFTDI_CFLAGS="-I$with_libftdi"
-    ],[
-      AC_PATH_TOOL(LIBFTDI_CONFIG, libftdi-config, no)
-      AS_IF([test "$LIBFTDI_CONFIG" != "no"],[
-        LIBFTDI_LIBS=`$LIBFTDI_CONFIG --libs`
-        LIBFTDI_CFLAGS=`$LIBFTDI_CONFIG --cflags`
+  PKG_CHECK_MODULES(LIBFTDI, libftdi1, [:;], [dnl
+    PKG_CHECK_MODULES(LIBFTDI, libftdi, [:;], [dnl
+      AS_IF([test "x$with_libftdi" != xyes -a "x$with_libftdi" != xcheck], [
+        LIBFTDI_LIBS="-L$with_libftdi -lftdi"
+        LIBFTDI_CFLAGS="-I$with_libftdi"
+      ],[
+        AC_PATH_TOOL(LIBFTDI_CONFIG, libftdi-config, no)
+        AS_IF([test "$LIBFTDI_CONFIG" != "no"],[
+          LIBFTDI_LIBS=`$LIBFTDI_CONFIG --libs`
+          LIBFTDI_CFLAGS=`$LIBFTDI_CONFIG --cflags`
+        ])
       ])
     ])
   ])
