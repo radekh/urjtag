@@ -131,7 +131,9 @@ usbconn_libusb_connect (urj_usbconn_cable_t *template,
         errno = 0;
         return NULL;
     }
-    //libusb_set_debug(ctx, 3);		//RFH:DEBUG
+#ifdef HAVE_LIBUSB1
+    libusb_set_debug(ctx, 3);		//RFH:DEBUG
+#endif
     num_devs = libusb_get_device_list (ctx, &list);
     for (i = 0; i < num_devs; ++i)
     {
